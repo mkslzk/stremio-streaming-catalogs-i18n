@@ -1,6 +1,15 @@
-# Stremio Streaming Catalogs Addon
+# Stremio Streaming Catalogs Addon — Multilingual Fork
 
 ![image](https://user-images.githubusercontent.com/6817390/216839228-f0d09dfd-e76b-4d23-bf4f-cab09febd1ef.png)
+
+> **🌍 This is a multilingual fork** of
+> **[rleroi/Stremio-Streaming-Catalogs-Addon](https://github.com/rleroi/Stremio-Streaming-Catalogs-Addon)**.
+> It adds support for catalog metadata in 80+ languages via TMDB. See
+> [`NOTICES.md`](NOTICES.md) for upstream attribution and license.
+>
+> All credit for the original addon goes to
+> [@rleroi](https://github.com/rleroi) — please consider
+> [supporting them on Ko-fi](https://ko-fi.com/rab1t).
 
 A Stremio addon that provides streaming catalogs from various popular streaming services including Netflix, Disney+, HBO Max, Prime Video, Apple TV+, and many more. This addon allows users to browse and discover content from multiple streaming platforms directly within Stremio.
 
