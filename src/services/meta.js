@@ -165,10 +165,36 @@ export function createMetaEnricher({ tmdb, cinemeta, logger = () => {} }) {
     };
   }
 
+  /**
+   * Export the current idCache as a plain object, suitable for serializing
+   * to disk. Negative cache entries (NULL_TMDB_ID) are kept — they save
+   * /find calls for items TMDB never knows about.
+   */
+  function _exportIdCache() {
+    const out = {};
+    for (const [imdbId, val] of idCache.entries()) {
+      out[imdbId] = val === NULL_TMDB_ID ? null : val;
+    }
+    return out;
+  }
+
+  /**
+   * Import a previously exported idCache (e.g. loaded from disk on boot).
+   * Overwrites any in-memory state. Use right after createMetaEnricher().
+   */
+  function _importIdCache(serialized) {
+    idCache.clear();
+    for (const [imdbId, val] of Object.entries(serialized || {})) {
+      idCache.set(imdbId, val == null ? NULL_TMDB_ID : val);
+    }
+  }
+
   return Object.freeze({
     enrich,
     _resetCache,
     _stats,
+    _exportIdCache,
+    _importIdCache,
   });
 }
 

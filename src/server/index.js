@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
 import justwatch from '../services/justwatch.js';
-import { loadCatalogCache, saveCatalogCache, clearCatalogCache } from '../utils/cache.js';
+import { loadCatalogCache, saveCatalogCache, clearCatalogCache, loadTmdbIdCache, saveTmdbIdCache } from '../utils/cache.js';
 import { handleConfiguredManifest, handleDefaultManifest } from './routes/manifest.js';
 import { handleCatalog } from './routes/catalog.js';
 import { createTmdbClient } from '../services/tmdb.js';
@@ -44,6 +44,31 @@ const metaEnricher = tmdb
       logger: (msg) => console.warn('[meta]', msg),
     })
   : null;
+
+// Restore the IMDB→TMDB id cache from disk if present. After the first cold
+// boot, this saves us ~thousands of /find calls per restart.
+if (metaEnricher) {
+  const cached = loadTmdbIdCache();
+  if (cached && Object.keys(cached).length > 0) {
+    metaEnricher._importIdCache(cached);
+    console.log(`Loaded ${Object.keys(cached).length} TMDB id mappings from cache`);
+  }
+}
+
+// Persist the TMDB id cache on graceful shutdown so the next boot skips the
+// /find round-trip for known items. SIGINT (Ctrl-C) and SIGTERM are the
+// common stop signals in dev and Docker.
+function persistTmdbIdCache() {
+  if (metaEnricher) {
+    try {
+      saveTmdbIdCache(metaEnricher._exportIdCache());
+    } catch (e) {
+      console.warn('Failed to persist TMDB id cache:', e.message);
+    }
+  }
+}
+process.on('SIGINT', () => { persistTmdbIdCache(); process.exit(0); });
+process.on('SIGTERM', () => { persistTmdbIdCache(); process.exit(0); });
 
 // Production error handling
 if (process.env.NODE_ENV === 'production') {

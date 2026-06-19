@@ -119,10 +119,17 @@ export function handleConfiguredManifest(req, res, mixpanel) {
   res.setHeader('Cache-Control', 'max-age=86400,stale-while-revalidate=86400,stale-if-error=86400,public');
   res.setHeader('content-type', 'application/json');
 
-  // Parse config
+  // Parse config. Format (8 fields, last one is i18n extension):
+  //   providers:rpdbKey:countryCode:installedAt:n10Global:n10Country:n10CountryCode:language
+  // The language field is optional for backward compatibility with old
+  // install links. When present it's a BCP-47 code (e.g. 'de-DE').
   const buffer = Buffer(req.params?.configuration || '', 'base64');
   const configParts = buffer.toString('ascii')?.split(':');
-  const [selectedProviders, rpdbKey, countryCode, installedAt, netflixTop10Global, netflixTop10Country, netflixTop10CountryCode] = configParts;
+  const [
+    selectedProviders, rpdbKey, countryCode, installedAt,
+    netflixTop10Global, netflixTop10Country, netflixTop10CountryCode,
+    language,
+  ] = configParts;
 
   mixpanel && mixpanel.track('install', {
     ip: req.ip,
@@ -132,6 +139,7 @@ export function handleConfiguredManifest(req, res, mixpanel) {
     rpdbKey,
     countryCode,
     installedAt,
+    language,
   });
 
   const catalogs = [

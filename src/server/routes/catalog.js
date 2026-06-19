@@ -8,15 +8,21 @@ export function handleCatalog(req, res, movies, series, mixpanel) {
   res.setHeader('Cache-Control', 'max-age=86400,stale-while-revalidate=86400,stale-if-error=86400,public');
   res.setHeader('content-type', 'application/json');
 
-  // Parse config
+  // Parse config. Format (8 fields, last one is i18n extension):
+  //   providers:rpdbKey:countryCode:installedAt:n10Global:n10Country:n10CountryCode:language
+  // The language field is optional for backward compatibility.
   const buffer = Buffer(req.params?.configuration || '', 'base64');
-  let [selectedProviders, rpdbKey, countryCode, installedAt] = buffer.toString('ascii')?.split(':');
+  const parts = buffer.toString('ascii')?.split(':') || [];
+  let [selectedProviders, rpdbKey, countryCode, installedAt] = parts;
 
   // Handle legacy RPDB key format
   if (String(rpdbKey || '').startsWith('16')) {
     installedAt = rpdbKey;
     rpdbKey = null;
   }
+
+  // Extract language from the 8th field (if present)
+  const language = parts[7] || null;
 
   mixpanel && mixpanel.track('catalog', {
     ip: req.ip,
@@ -26,6 +32,7 @@ export function handleCatalog(req, res, movies, series, mixpanel) {
     rpdbKey,
     countryCode,
     installedAt,
+    language,
     catalog_type: req.params.type,
     catalog_id: req.params.id,
     catalog_extra: req.params?.extra,

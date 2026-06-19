@@ -31,6 +31,24 @@
             </div>
             <div class="text-gray-300">
               <form class="space-y-6" @submit.prevent="installAddon">
+
+                <!-- Language Selection (i18n fork extension) -->
+                <div class="pb-4 border-b border-gray-700">
+                  <div class="mb-1">
+                    <p class="text-gray-500 mb-1 text-sm">Catalog & metadata language:</p>
+                    <select v-model="state.language"
+                            class="w-full text-gray-200 text-sm px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:border-purple-400">
+                      <option v-for="lang in availableLanguages" :key="lang.code" :value="lang.code">
+                        {{ lang.label }}
+                      </option>
+                    </select>
+                    <p class="text-gray-600 text-xs mt-1">
+                      ⚠️ Requires server-side <code class="text-purple-400">CATALOG_LANGUAGE</code> env var
+                      to match. Server operator must set this — see README.
+                    </p>
+                  </div>
+                </div>
+
                 <!-- Netflix Top 10 Section -->
                 <div v-if="enableNetflixTop10" class="pb-6 border-b border-gray-700">
                   <p class="text-gray-500 mb-3 text-sm">Netflix Top 10:</p>
@@ -577,6 +595,32 @@ countryNameToCode['Trinidad and Tobago'] = 'TT';
 countryNameToCode['Britain (UK)'] = 'GB';
 countryNameToCode['United Kingdom'] = 'GB';
 
+// Available catalog/metadata languages (subset of TMDB's 80+ languages)
+// Sorted by label for easy scanning in the dropdown.
+const availableLanguages = [
+  { code: 'en-US', label: '🇺🇸 English (US)' },
+  { code: 'de-DE', label: '🇩🇪 Deutsch (DE)' },
+  { code: 'fr-FR', label: '🇫🇷 Français (FR)' },
+  { code: 'es-ES', label: '🇪🇸 Español (ES)' },
+  { code: 'it-IT', label: '🇮🇹 Italiano (IT)' },
+  { code: 'pt-BR', label: '🇧🇷 Português (BR)' },
+  { code: 'pt-PT', label: '🇵🇹 Português (PT)' },
+  { code: 'nl-NL', label: '🇳🇱 Nederlands (NL)' },
+  { code: 'pl-PL', label: '🇵🇱 Polski (PL)' },
+  { code: 'sv-SE', label: '🇸🇪 Svenska (SE)' },
+  { code: 'da-DK', label: '🇩🇰 Dansk (DK)' },
+  { code: 'no-NO', label: '🇳🇴 Norsk (NO)' },
+  { code: 'fi-FI', label: '🇫🇮 Suomi (FI)' },
+  { code: 'ja-JP', label: '🇯🇵 日本語 (JP)' },
+  { code: 'ko-KR', label: '🇰🇷 한국어 (KR)' },
+  { code: 'zh-CN', label: '🇨🇳 中文 (简体)' },
+  { code: 'zh-TW', label: '🇹🇼 中文 (繁體)' },
+  { code: 'ru-RU', label: '🇷🇺 Русский (RU)' },
+  { code: 'ar-SA', label: '🇸🇦 العربية (SA)' },
+  { code: 'hi-IN', label: '🇮🇳 हिन्दी (IN)' },
+  { code: 'tr-TR', label: '🇹🇷 Türkçe (TR)' },
+];
+
 function getCountryCodeFromCountry(country) {
   return countryNameToCode[country] || '';
 }
@@ -605,6 +649,7 @@ function getNetflixTop10CountryCode() {
 const state = reactive({
   country: getCountry(),
   rpdbKey: '',
+  language: 'en-US',  // i18n fork: catalog metadata language
   providers: [
     'nfx',
     'dnp',
@@ -642,7 +687,7 @@ function decodeUrlConfig() {
 
   try {
     const configString = atob(decodeURIComponent(urlParts.pop())).split(':');
-    const [providers, rpdbKey, countryCode, timeStamp, netflixTop10Global, netflixTop10Country, netflixTop10CountryCode] = configString;
+    const [providers, rpdbKey, countryCode, timeStamp, netflixTop10Global, netflixTop10Country, netflixTop10CountryCode, language] = configString;
     state.rpdbKey = rpdbKey || '';
     state.providers = providers ? providers.split(',') : [];
     state.countryCode = countryCode || null;
@@ -651,6 +696,8 @@ function decodeUrlConfig() {
     state.netflixTop10Global = netflixTop10Global !== undefined ? netflixTop10Global === '1' : true;
     state.netflixTop10Country = netflixTop10Country !== undefined ? netflixTop10Country === '1' : false;
     state.netflixTop10CountryCode = netflixTop10CountryCode || '';
+    // i18n fork: 8th field is language (optional, backward compat)
+    state.language = language || 'en-US';
   } catch (e) {
     console.log('No valid configuration:', e.message);
   }
@@ -668,7 +715,8 @@ function installAddon() {
     return;
   }
 
-  // Build configuration string: providers:rpdbKey:countryCode:timestamp:netflixTop10Global:netflixTop10Country:netflixTop10CountryCode
+  // Build configuration string (8 fields, last is i18n language):
+  //   providers:rpdbKey:countryCode:timestamp:netflixTop10Global:netflixTop10Country:netflixTop10CountryCode:language
   const configParts = [
     state.providers.join(','),
     state.rpdbKey,
@@ -676,7 +724,8 @@ function installAddon() {
     state.timeStamp || Number(new Date()),
     state.netflixTop10Global || '0',
     state.netflixTop10Country || '0',
-    state.netflixTop10CountryCode || ''
+    state.netflixTop10CountryCode || '',
+    state.language || 'en-US',  // i18n fork extension
   ];
 
   const base64 = btoa(configParts.join(':'));
