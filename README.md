@@ -13,13 +13,76 @@
 
 A Stremio addon that provides streaming catalogs from various popular streaming services including Netflix, Disney+, HBO Max, Prime Video, Apple TV+, and many more. This addon allows users to browse and discover content from multiple streaming platforms directly within Stremio.
 
+> **What's new in this fork:** All catalog titles, descriptions and posters are
+> fetched from **TMDB in your language** (80+ supported) instead of being
+> hardcoded English. The language is selected via the `CATALOG_LANGUAGE`
+> environment variable (e.g. `de`, `fr`, `ja`, `es`, …). See
+> [`docs/I18N.md`](docs/I18N.md) for the full list of supported languages and
+> configuration options.
+
 ## Features
+
+- **🌍 Multilingual metadata** — titles, descriptions, posters in 80+ languages via TMDB
+- **🚀 Persistent TMDB cache** — repeated boots reuse the same IMDB→TMDB-ID mappings, no rate-limit churn
+- **🛡️ Graceful fallback** — TMDB outages fall back to Cinemeta, never crashes the catalog
+
+**Original features (inherited from upstream):**
 
 - **Multiple Streaming Services**: Support for 20+ streaming platforms
 - **Country-based Filtering**: Filter providers by country/region
 - **Web Interface**: Modern Vue.js web interface for configuration
 - **Real-time Catalogs**: Live streaming catalogs from various services
 - **Easy Installation**: Simple addon installation process
+
+## Quick Start — Homelab (Stremio Addon)
+
+Want to run this as a Stremio addon on your home network? Three commands:
+
+```bash
+git clone https://github.com/mkslzk/stremio-streaming-catalogs-i18n.git
+cd stremio-streaming-catalogs-i18n
+npm install
+```
+
+Put your TMDB credentials in `.env` (use either `TMDB_API_KEY` (v3) **or**
+`TMDB_READ_TOKEN` (v4 Read Access Token)):
+
+```bash
+echo 'TMDB_API_KEY=your_v3_key_here' > .env
+echo 'CATALOG_LANGUAGE=de' >> .env          # de, fr, es, ja, it, pt, … (default: en)
+echo 'PORT=7700' >> .env                     # default: 7700
+```
+
+Start it:
+
+```bash
+node --env-file=.env index.js
+```
+
+The first boot fetches ~7000 TMDB lookups (cold cache) and takes ~1 minute.
+**Subsequent boots are near-instant** thanks to the persistent TMDB cache at
+`cache/tmdb-id-cache.json`.
+
+Add it to Stremio — point your Stremio client at:
+
+```
+http://<your-server-lan-ip>:7700/manifest.json
+```
+
+Or with the Stremio protocol handler (works on desktop / Android / iOS):
+
+```
+stremio://<your-server-lan-ip>:7700/manifest.json
+```
+
+Find your LAN IP with `hostname -I | awk '{print $1}'` (Linux) or `ipconfig`
+(Windows). The server binds to `0.0.0.0` by default, so it's reachable from any
+device on your network.
+
+> **First-boot tip:** if you hit TMDB rate limits (HTTP 429) during the cold
+> start, wait a few minutes and re-launch. The cache will be persisted to disk
+> on graceful shutdown (SIGTERM/SIGINT), so the second boot will skip all the
+> /find lookups that triggered the throttle.
 
 ## Supported Streaming Services
 
