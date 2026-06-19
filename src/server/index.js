@@ -8,6 +8,9 @@ import justwatch from '../services/justwatch.js';
 import { loadCatalogCache, saveCatalogCache, clearCatalogCache } from '../utils/cache.js';
 import { handleConfiguredManifest, handleDefaultManifest } from './routes/manifest.js';
 import { handleCatalog } from './routes/catalog.js';
+import { createTmdbClient } from '../services/tmdb.js';
+import { createMetaEnricher } from '../services/meta.js';
+import { fetchCinemetaMeta, getBasicMeta } from '../services/cinemeta.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,6 +18,32 @@ const __dirname = path.dirname(__filename);
 const REFRESH_INTERVAL = process.env.REFRESH_INTERVAL || 21600000; // 6 hours in milliseconds
 const USE_CACHE = process.env.USE_CACHE !== 'false'; // Default to true
 const FORCE_REFRESH = process.env.FORCE_REFRESH === 'true'; // Default to false
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Meta-enricher setup
+//
+// TMDB client is built once at boot. If TMDB credentials are missing, we skip
+// enrichment entirely (the existing Cinemeta-only path takes over).
+// ─────────────────────────────────────────────────────────────────────────────
+const tmdb = (() => {
+  try {
+    return createTmdbClient({
+      readToken: process.env.TMDB_READ_TOKEN,
+      apiKey: process.env.TMDB_API_KEY,
+    });
+  } catch (e) {
+    console.warn('TMDB client not initialized:', e.message, '— falling back to Cinemeta-only');
+    return null;
+  }
+})();
+
+const metaEnricher = tmdb
+  ? createMetaEnricher({
+      tmdb,
+      cinemeta: { fetchCinemetaMeta, getBasicMeta },
+      logger: (msg) => console.warn('[meta]', msg),
+    })
+  : null;
 
 // Production error handling
 if (process.env.NODE_ENV === 'production') {
@@ -78,77 +107,84 @@ async function loadNewCatalog() {
   
   // If no cache or expired, fetch fresh data
   console.log('Fetching fresh catalog data...');
-  movies.nfx = await justwatch.getMetas('MOVIE', ['nfx'], 'GB');
-  movies.nfk = await justwatch.getMetas('MOVIE', ['nfk'], 'US');
-  movies.dnp = await justwatch.getMetas('MOVIE', ['dnp'], 'GB');
-  movies.atp = await justwatch.getMetas('MOVIE', ['atp'], 'GB');
-  movies.amp = await justwatch.getMetas('MOVIE', ['amp'], 'US');
-  movies.pmp = await justwatch.getMetas('MOVIE', ['pmp'], 'US');
-  movies.hbm = await justwatch.getMetas('MOVIE', ['hbm'], 'NL');
-  movies.hlu = await justwatch.getMetas('MOVIE', ['hlu'], 'US');
-  movies.pcp = await justwatch.getMetas('MOVIE', ['pcp'], 'US');
-  movies.cts = await justwatch.getMetas('MOVIE', ['cts'], 'US');
-  movies.mgl = await justwatch.getMetas('MOVIE', ['mgl'], 'US');
-  movies.cru = await justwatch.getMetas('MOVIE', ['cru'], 'US');
-  movies.jhs = await justwatch.getMetas('MOVIE', ['jhs'], 'IN', 'in');
-  movies.zee = await justwatch.getMetas('MOVIE', ['zee'], 'IN', 'in');
-  movies.vil = await justwatch.getMetas('MOVIE', ['vil'], 'NL', 'nl');
-  movies.nlz = await justwatch.getMetas('MOVIE', ['nlz'], 'NL', 'nl');
-  movies.sst = await justwatch.getMetas('MOVIE', ['sst'], 'NL', 'nl');
-  movies.clv = await justwatch.getMetas('MOVIE', ['clv'], 'BR', 'br');
-  movies.gop = await justwatch.getMetas('MOVIE', ['gop'], 'BR', 'br');
-  movies.cpd = await justwatch.getMetas('MOVIE', ['cpd'], 'FR', 'fr');
-  movies.stz = await justwatch.getMetas('MOVIE', ['stz'], 'US');
-  movies.mbi = await justwatch.getMetas('MOVIE', ['mbi'], 'US');
-  movies.vik = await justwatch.getMetas('MOVIE', ['vik'], 'US');
-  movies.sgo = await justwatch.getMetas('MOVIE', ['sgo'], 'DE', 'de');
-  movies.sonyliv = await justwatch.getMetas('MOVIE', ['sonyliv'], 'IN', 'hi');
-  movies.mp9 = await justwatch.getMetas('MOVIE', ['mp9'], 'ES', 'es');
-  movies.shd = await justwatch.getMetas('MOVIE', ['shd'], 'US');
-  movies.bbo = await justwatch.getMetas('MOVIE', ['bbo'], 'US');
-  movies.act = await justwatch.getMetas('MOVIE', ['act'], 'US');
-  movies.crc = await justwatch.getMetas('MOVIE', ['crc'], 'US');
-  movies.iqi = await justwatch.getMetas('MOVIE', ['iqi'], 'US');
-  movies.sha = await justwatch.getMetas('MOVIE', ['sha'], 'US');
-  movies.itv = await justwatch.getMetas('MOVIE', ['itv'], 'GB');
-  movies.bbc = await justwatch.getMetas('MOVIE', ['bbc'], 'GB');
-  movies.al4 = await justwatch.getMetas('MOVIE', ['al4'], 'GB');
+  // CATALOG_LANGUAGE defaults to 'en'. Per-provider overrides below match
+  // the original config: regional providers (NL/IN/BR/FR/DE/ES/HI) keep their
+  // native language so JustWatch still returns the right country availability.
+  const DEFAULT_LANG = process.env.CATALOG_LANGUAGE || 'en';
+  // Helper: build a caller that threads the metaEnricher through to getMetas.
+  const call = (type, providers, country, lang = DEFAULT_LANG) =>
+    justwatch.getMetas(type, providers, country, lang, metaEnricher);
+  movies.nfx = await call('MOVIE', ['nfx'], 'GB');
+  movies.nfk = await call('MOVIE', ['nfk'], 'US');
+  movies.dnp = await call('MOVIE', ['dnp'], 'GB');
+  movies.atp = await call('MOVIE', ['atp'], 'GB');
+  movies.amp = await call('MOVIE', ['amp'], 'US');
+  movies.pmp = await call('MOVIE', ['pmp'], 'US');
+  movies.hbm = await call('MOVIE', ['hbm'], 'NL');
+  movies.hlu = await call('MOVIE', ['hlu'], 'US');
+  movies.pcp = await call('MOVIE', ['pcp'], 'US');
+  movies.cts = await call('MOVIE', ['cts'], 'US');
+  movies.mgl = await call('MOVIE', ['mgl'], 'US');
+  movies.cru = await call('MOVIE', ['cru'], 'US');
+  movies.jhs = await call('MOVIE', ['jhs'], 'IN', 'in');
+  movies.zee = await call('MOVIE', ['zee'], 'IN', 'in');
+  movies.vil = await call('MOVIE', ['vil'], 'NL', 'nl');
+  movies.nlz = await call('MOVIE', ['nlz'], 'NL', 'nl');
+  movies.sst = await call('MOVIE', ['sst'], 'NL', 'nl');
+  movies.clv = await call('MOVIE', ['clv'], 'BR', 'br');
+  movies.gop = await call('MOVIE', ['gop'], 'BR', 'br');
+  movies.cpd = await call('MOVIE', ['cpd'], 'FR', 'fr');
+  movies.stz = await call('MOVIE', ['stz'], 'US');
+  movies.mbi = await call('MOVIE', ['mbi'], 'US');
+  movies.vik = await call('MOVIE', ['vik'], 'US');
+  movies.sgo = await call('MOVIE', ['sgo'], 'DE', 'de');
+  movies.sonyliv = await call('MOVIE', ['sonyliv'], 'IN', 'hi');
+  movies.mp9 = await call('MOVIE', ['mp9'], 'ES', 'es');
+  movies.shd = await call('MOVIE', ['shd'], 'US');
+  movies.bbo = await call('MOVIE', ['bbo'], 'US');
+  movies.act = await call('MOVIE', ['act'], 'US');
+  movies.crc = await call('MOVIE', ['crc'], 'US');
+  movies.iqi = await call('MOVIE', ['iqi'], 'US');
+  movies.sha = await call('MOVIE', ['sha'], 'US');
+  movies.itv = await call('MOVIE', ['itv'], 'GB');
+  movies.bbc = await call('MOVIE', ['bbc'], 'GB');
+  movies.al4 = await call('MOVIE', ['al4'], 'GB');
 
-  series.nfx = await justwatch.getMetas('SHOW', ['nfx'], 'GB');
-  series.nfk = await justwatch.getMetas('SHOW', ['nfk'], 'US');
-  series.dnp = await justwatch.getMetas('SHOW', ['dnp'], 'GB');
-  series.atp = await justwatch.getMetas('SHOW', ['atp'], 'GB');
-  series.hay = await justwatch.getMetas('SHOW', ['hay'], 'GB');
-  series.dpe = await justwatch.getMetas('SHOW', ['dpe'], 'GB');
-  series.amp = await justwatch.getMetas('SHOW', ['amp'], 'US');
-  series.pmp = await justwatch.getMetas('SHOW', ['pmp'], 'US');
-  series.hbm = await justwatch.getMetas('SHOW', ['hbm'], 'NL');
-  series.hlu = await justwatch.getMetas('SHOW', ['hlu'], 'US');
-  series.pcp = await justwatch.getMetas('SHOW', ['pcp'], 'US');
-  series.cru = await justwatch.getMetas('SHOW', ['cru'], 'US');
-  series.cts = await justwatch.getMetas('SHOW', ['cts'], 'US');
-  series.mgl = await justwatch.getMetas('SHOW', ['mgl'], 'US');
-  series.jhs = await justwatch.getMetas('SHOW', ['jhs'], 'IN', 'in');
-  series.zee = await justwatch.getMetas('SHOW', ['zee'], 'IN', 'in');
-  series.vil = await justwatch.getMetas('SHOW', ['vil'], 'NL', 'nl');
-  series.nlz = await justwatch.getMetas('SHOW', ['nlz'], 'NL', 'nl');
-  series.sst = await justwatch.getMetas('SHOW', ['sst'], 'NL', 'nl');
-  series.clv = await justwatch.getMetas('SHOW', ['clv'], 'BR', 'br');
-  series.gop = await justwatch.getMetas('SHOW', ['gop'], 'BR', 'br');
-  series.cpd = await justwatch.getMetas('SHOW', ['cpd'], 'FR', 'fr');
-  series.stz = await justwatch.getMetas('SHOW', ['stz'], 'US');
-  series.vik = await justwatch.getMetas('SHOW', ['vik'], 'US');
-  series.sgo = await justwatch.getMetas('SHOW', ['sgo'], 'DE', 'de');
-  series.sonyliv = await justwatch.getMetas('SHOW', ['sonyliv'], 'IN', 'hi');
-  series.mp9 = await justwatch.getMetas('SHOW', ['mp9'], 'ES', 'es');
-  series.shd = await justwatch.getMetas('SHOW', ['shd'], 'US');
-  series.bbo = await justwatch.getMetas('SHOW', ['bbo'], 'US');
-  series.act = await justwatch.getMetas('SHOW', ['act'], 'US');
-  series.iqi = await justwatch.getMetas('SHOW', ['iqi'], 'US');
-  series.sha = await justwatch.getMetas('SHOW', ['sha'], 'US');
-  series.itv = await justwatch.getMetas('SHOW', ['itv'], 'GB');
-  series.bbc = await justwatch.getMetas('SHOW', ['bbc'], 'GB');
-  series.al4 = await justwatch.getMetas('SHOW', ['al4'], 'GB');
+  series.nfx = await call('SHOW', ['nfx'], 'GB');
+  series.nfk = await call('SHOW', ['nfk'], 'US');
+  series.dnp = await call('SHOW', ['dnp'], 'GB');
+  series.atp = await call('SHOW', ['atp'], 'GB');
+  series.hay = await call('SHOW', ['hay'], 'GB');
+  series.dpe = await call('SHOW', ['dpe'], 'GB');
+  series.amp = await call('SHOW', ['amp'], 'US');
+  series.pmp = await call('SHOW', ['pmp'], 'US');
+  series.hbm = await call('SHOW', ['hbm'], 'NL');
+  series.hlu = await call('SHOW', ['hlu'], 'US');
+  series.pcp = await call('SHOW', ['pcp'], 'US');
+  series.cru = await call('SHOW', ['cru'], 'US');
+  series.cts = await call('SHOW', ['cts'], 'US');
+  series.mgl = await call('SHOW', ['mgl'], 'US');
+  series.jhs = await call('SHOW', ['jhs'], 'IN', 'in');
+  series.zee = await call('SHOW', ['zee'], 'IN', 'in');
+  series.vil = await call('SHOW', ['vil'], 'NL', 'nl');
+  series.nlz = await call('SHOW', ['nlz'], 'NL', 'nl');
+  series.sst = await call('SHOW', ['sst'], 'NL', 'nl');
+  series.clv = await call('SHOW', ['clv'], 'BR', 'br');
+  series.gop = await call('SHOW', ['gop'], 'BR', 'br');
+  series.cpd = await call('SHOW', ['cpd'], 'FR', 'fr');
+  series.stz = await call('SHOW', ['stz'], 'US');
+  series.vik = await call('SHOW', ['vik'], 'US');
+  series.sgo = await call('SHOW', ['sgo'], 'DE', 'de');
+  series.sonyliv = await call('SHOW', ['sonyliv'], 'IN', 'hi');
+  series.mp9 = await call('SHOW', ['mp9'], 'ES', 'es');
+  series.shd = await call('SHOW', ['shd'], 'US');
+  series.bbo = await call('SHOW', ['bbo'], 'US');
+  series.act = await call('SHOW', ['act'], 'US');
+  series.iqi = await call('SHOW', ['iqi'], 'US');
+  series.sha = await call('SHOW', ['sha'], 'US');
+  series.itv = await call('SHOW', ['itv'], 'GB');
+  series.bbc = await call('SHOW', ['bbc'], 'GB');
+  series.al4 = await call('SHOW', ['al4'], 'GB');
 
   // Save to cache (if caching is enabled)
   if (USE_CACHE) {

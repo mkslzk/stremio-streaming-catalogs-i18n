@@ -11,7 +11,7 @@ export default {
   async getLatest(type = 'MOVIE', providers = ['nfx'], country = "GB", language = 'en') {
     // todo
   },
-  async getMetas(type = 'MOVIE', providers = ['nfx'], country = "GB", language = 'en') {
+  async getMetas(type = 'MOVIE', providers = ['nfx'], country = "GB", language = 'en', metaEnricher = null) {
     let res = null;
     try {
       res = await axios.post('https://apis.justwatch.com/graphql', {
@@ -95,9 +95,21 @@ export default {
         posterUrl = `https://live.metahub.space/poster/medium/${imdbId}/img`;
       }
 
-      // get better metadata from cinemeta
+      // Enrich metadata: TMDB primary, Cinemeta fallback, basic meta last.
+      // If a metaEnricher is provided, it owns the i18n logic. If not, fall
+      // back to the original Cinemeta-only path (backward compatibility).
+      if (metaEnricher) {
+        return await metaEnricher.enrich({
+          imdbId,
+          type,
+          language,
+          fallbackTitle: item.node.content.title,
+          justwatchPoster: posterUrl,
+        });
+      }
+
       const cinemetaMeta = await fetchCinemetaMeta(imdbId, type, item.node.content.title);
-      
+
       if (cinemetaMeta) {
         return {
           ...cinemetaMeta,
