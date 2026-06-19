@@ -80,14 +80,14 @@ of scope unless explicitly requested.
 6. **Tests** — `tests/i18n.test.js` — unit test for TMDB enrichment,
    integration test for full pipeline (mock JustWatch, real TMDB).
 
-## Decisions needed (from user)
+## Decisions (resolved with user 2026-06-19)
 
-| # | Question                                                          | Default if no answer       |
-|---|-------------------------------------------------------------------|----------------------------|
-| A | Which languages must work in v1? (de, en, fr, es, …?)             | `en` + `de`                |
-| B | How should users set the language — config flag, env var, both?   | env var + config flag      |
-| C | Where should the addon be hosted? (Stremio's official server? Self-host?) | self-host on homelab |
-| D | Cinemeta fallback: keep as fallback if TMDB has no match, or hard replace? | keep as fallback |
+| # | Question                                                          | Decision                  |
+|---|-------------------------------------------------------------------|---------------------------|
+| A | Which languages must work in v1?                                  | **All 80+ that TMDB supports** |
+| B | How should users set the language?                                | **Config flag in frontend only** (no env var) |
+| C | Where will the hosted build run?                                  | **Local for now, decide hosting later** |
+| D | Cinemeta fallback when TMDB has no match?                         | **Keep Cinemeta as fallback** |
 
 ## Non-goals (for this iteration)
 
