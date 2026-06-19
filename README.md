@@ -79,6 +79,35 @@ Find your LAN IP with `hostname -I | awk '{print $1}'` (Linux) or `ipconfig`
 (Windows). The server binds to `0.0.0.0` by default, so it's reachable from any
 device on your network.
 
+> **🔒 Stremio requires HTTPS for addons.** A plain `http://` URL is rejected
+> by Stremio. The easiest way to add HTTPS without buying a domain or
+> configuring a reverse proxy is to put the server behind a Tailscale network
+> and use Tailscale's built-in HTTPS:
+>
+> ```bash
+> # One-time: install Tailscale and set a stable hostname
+> curl -fsSL https://tailscale.com/install.sh | sh
+> sudo tailscale up
+> sudo tailscale set --hostname=stremio-i18n
+> sudo tailscale set --accept-dns=true
+>
+> # Persistent HTTPS proxy: tailscale.ts.net:443 → localhost:7700
+> sudo tailscale serve --bg --https=443 --set-path=/ http://localhost:7700
+> ```
+>
+> Then install in Stremio with:
+>
+> ```
+> https://stremio-i18n.<your-tailnet>.ts.net/manifest.json
+> ```
+>
+> This URL works from any device that has Tailscale installed and is logged
+> into your account — including phones, TVs, and laptops on different
+> networks. The `tailscale serve` command is persistent across reboots.
+>
+> Find your tailnet name with `tailscale status | head -1` (the part after the
+> last `-` in the hostname column).
+
 > **First-boot tip:** if you hit TMDB rate limits (HTTP 429) during the cold
 > start, wait a few minutes and re-launch. The cache will be persisted to disk
 > on graceful shutdown (SIGTERM/SIGINT), so the second boot will skip all the
