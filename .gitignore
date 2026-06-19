@@ -4,6 +4,7 @@ vue/dist/error.log
 .idea
 
 # Environment files
+.env
 .env.local
 .env.production
 # Keep pre-configured frontend env files
