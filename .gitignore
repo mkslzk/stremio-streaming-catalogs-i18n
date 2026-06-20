@@ -45,4 +45,10 @@ jspm_packages/
 # Cache directory
 cache/
 
+# Tailscale certificates (host-specific, never commit)
+cert.pem
+key.pem
+*.ts.net.crt
+*.ts.net.key
+
 

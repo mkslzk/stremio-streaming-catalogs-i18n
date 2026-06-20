@@ -1,16 +1,32 @@
 services:
-  stremio-addon:
-    build:
-      context: .
-      dockerfile: Dockerfile.local
-    ports:
-      - "7700:7700"
-    environment:
-      - NODE_ENV=production
+  stremio-i18n:
+    build: .
+    image: stremio-streaming-catalogs-i18n:latest
+    container_name: stremio-i18n
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7700/manifest.json"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    expose:
+      - "7700"
+    env_file:
+      - .env
+    volumes:
+      - ./cache:/app/cache
+    networks:
+      - stremio-net
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: stremio-i18n-proxy
+    restart: unless-stopped
+    command: ["caddy", "run", "--config", "/etc/caddy/caddy.json", "--adapter", ""]
+    ports:
+      - "7701:7701"
+    volumes:
+      - ./caddy.json:/etc/caddy/caddy.json:ro
+      - ./cert.pem:/app/cert.pem:ro
+      - ./key.pem:/app/key.pem:ro
+    networks:
+      - stremio-net
+
+networks:
+  stremio-net:
+    name: stremio-net

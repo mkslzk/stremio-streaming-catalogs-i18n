@@ -1,0 +1,50 @@
+{
+  "admin": {
+    "listen": "localhost:2019"
+  },
+  "apps": {
+    "http": {
+      "servers": {
+        "addon_https": {
+          "listen": [":7701"],
+          "routes": [
+            {
+              "match": [{"host": ["stremio-i18n.mara-palermo.ts.net"]}],
+              "handle": [
+                {
+                  "handler": "rewrite",
+                  "strip_path_prefix": "/stremio-i18n"
+                },
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [{"dial": "stremio-i18n:7700"}]
+                }
+              ],
+              "terminal": true
+            }
+          ],
+          "logs": {},
+          "tls": {
+            "connection_policies": [
+              {
+                "certificate_selection": {
+                  "any_tag": ["homelab"]
+                },
+                "alpn": ["http/1.1", "h2"]
+              }
+            ],
+            "certificates": {
+              "load_files": [
+                {
+                  "certificate": "/app/cert.pem",
+                  "key": "/app/key.pem",
+                  "tags": ["homelab"]
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
