@@ -9,7 +9,7 @@
           "listen": [":7701"],
           "routes": [
             {
-              "match": [{"host": ["stremio-i18n.mara-palermo.ts.net"]}],
+              "match": [{"host": ["homelab.mara-palermo.ts.net"]}],
               "handle": [
                 {
                   "handler": "rewrite",
@@ -23,27 +23,22 @@
               "terminal": true
             }
           ],
-          "logs": {},
-          "tls": {
-            "connection_policies": [
-              {
-                "certificate_selection": {
-                  "any_tag": ["homelab"]
-                },
-                "alpn": ["http/1.1", "h2"]
-              }
-            ],
-            "certificates": {
-              "load_files": [
-                {
-                  "certificate": "/app/cert.pem",
-                  "key": "/app/key.pem",
-                  "tags": ["homelab"]
-                }
-              ]
-            }
-          }
+          "logs": {}
         }
+      }
+    },
+    "tls": {
+      "certificates": {
+        "load_files": [
+          {
+            "certificate": "/app/cert.pem",
+            "key": "/app/key.pem",
+            "tags": ["homelab"]
+          }
+        ]
+      },
+      "automation": {
+        "on_demand": {}
       }
     }
   }
